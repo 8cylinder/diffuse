@@ -23,10 +23,11 @@ examples:
   gdiff                       working tree vs index (like `git diff`)
   gdiff HEAD                  HEAD vs the working tree
   gdiff 1a2b3c4               a commit hash vs the working tree
-  gdiff file1 file2           compare two files on disk
   gdiff main feature          two commits
+  gdiff file1 file2           compare two existing files
+  gdiff -c 5 file1 file2      compare two files with 5 lines of context
   gdiff HEAD~1 HEAD -- src/   two commits, limited to a path
-  gdiff -- a.py b.py          limit the diff to two file paths
+  gdiff HEAD -- a.py b.py     limit HEAD's diff to these pathspecs
 """
 
 COMPLETE_VAR = "_GDIFF_COMPLETE"
@@ -50,6 +51,30 @@ def _is_file_pair(args: list[str]) -> bool:
         len(args) == 2
         and not any(arg.startswith("-") for arg in args)
         and all(Path(arg).is_file() for arg in args)
+    )
+
+
+def _make_options(
+    revs: list[str],
+    paths: list[str],
+    *,
+    staged: bool,
+    find_renames: bool,
+    context: int,
+) -> Options:
+    """Build options, treating two existing files as a file pair."""
+    files: list[str] = []
+    if _is_file_pair(revs):
+        files = revs
+        revs = []
+
+    return Options(
+        revs=revs,
+        paths=paths,
+        files=files,
+        staged=staged,
+        find_renames=find_renames,
+        context=context,
     )
 
 
@@ -191,9 +216,9 @@ def cli(
     """A terminal UI replacement for `git diff`."""
     paths: list[str] = ctx.obj if isinstance(ctx.obj, list) else []
     return run(
-        Options(
-            revs=list(revs),
-            paths=paths,
+        _make_options(
+            list(revs),
+            paths,
             staged=staged,
             find_renames=find_renames,
             context=context,
@@ -207,15 +232,9 @@ def parse_args(argv: list[str]) -> Options:
     revs = list(ctx.params["revs"])
     _check_revs(revs)
 
-    files: list[str] = []
-    if _is_file_pair(revs):
-        files = revs
-        revs = []
-
-    return Options(
-        revs=revs,
-        paths=paths,
-        files=files,
+    return _make_options(
+        revs,
+        paths,
         staged=ctx.params["staged"],
         find_renames=ctx.params["find_renames"],
         context=ctx.params["context"],

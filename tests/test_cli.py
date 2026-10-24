@@ -6,8 +6,9 @@ import click
 import pytest
 
 from gdiff import __version__
-from gdiff.cli import ALL_CONTEXT, main, parse_args, resolve_targets
+from gdiff.cli import ALL_CONTEXT, Options, main, parse_args, resolve_targets, run
 from gdiff.gitrepo import GitRepo, Target, TargetKind
+from gdiff.model import FileChange
 
 from .conftest import commit, write
 
@@ -76,6 +77,82 @@ def test_two_revisions_are_not_files(repo: Path, monkeypatch: pytest.MonkeyPatch
     assert options.revs == ["main", "feature"]
 
 
+def _capture_tty_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[Options]:
+    """Run ``main`` as if attached to a TTY, capturing the parsed options."""
+    captured: list[Options] = []
+
+    def fake_run(options: Options) -> int:
+        captured.append(options)
+        return 0
+
+    monkeypatch.setattr("gdiff.cli.sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr("gdiff.cli.sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("gdiff.cli.run", fake_run)
+    return captured
+
+
+def test_tty_two_existing_files_are_compared(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = tmp_path / "a.txt"
+    second = tmp_path / "b.txt"
+    first.write_text("one\n", encoding="utf-8")
+    second.write_text("two\n", encoding="utf-8")
+
+    captured = _capture_tty_options(monkeypatch)
+
+    assert main([str(first), str(second)]) == 0
+    (options,) = captured
+    assert options.files == [str(first), str(second)]
+    assert options.revs == []
+
+
+def test_tty_two_revisions_are_not_files(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(repo)
+    captured = _capture_tty_options(monkeypatch)
+
+    assert main(["main", "feature"]) == 0
+    (options,) = captured
+    assert options.files == []
+    assert options.revs == ["main", "feature"]
+
+
+def test_run_compares_file_pair_outside_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = tmp_path / "a.txt"
+    second = tmp_path / "b.txt"
+    first.write_text("one\n", encoding="utf-8")
+    second.write_text("two\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    captured: list[tuple[list[FileChange], Target, Target, int]] = []
+
+    class FakeApp:
+        def __init__(
+            self,
+            repo: GitRepo,
+            changes: list[FileChange],
+            left: Target,
+            right: Target,
+            context: int,
+        ) -> None:
+            captured.append((changes, left, right, context))
+
+        def run(self) -> None:
+            pass
+
+    monkeypatch.setattr("gdiff.cli.DiffApp", FakeApp)
+
+    assert run(Options(files=[str(first), str(second)])) == 0
+    ((changes, left, right, _),) = captured
+    assert left == Target.file(str(first))
+    assert right == Target.file(str(second))
+    assert len(changes) == 1
+
+
 def test_resolve_default_is_index_worktree(repo: Path) -> None:
     left, right = resolve_targets(GitRepo(repo), parse_args([]))
     assert left.kind is TargetKind.INDEX
@@ -136,7 +213,9 @@ def test_help_is_handled_without_tty(
     assert "gdiff HEAD" in out
     assert "a commit hash" in out
     assert "gdiff file1 file2" in out
-    assert "gdiff -- a.py b.py" in out
+    assert "two existing files" in out
+    assert "gdiff HEAD -- a.py b.py" in out
+    assert "pathspecs" in out
 
 
 def test_short_help_flag(
