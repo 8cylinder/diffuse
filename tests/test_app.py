@@ -64,6 +64,19 @@ def test_change_title_shows_both_files_for_rename() -> None:
     assert DiffApp._change_title(renamed) == "old.py | new.py"
 
 
+def test_context_bindings_share_one_footer_entry() -> None:
+    bindings = {binding.action: binding for binding in DiffApp.BINDINGS}
+    assert bindings["more_context"].key_display == "=/-"
+    assert bindings["less_context"].show is False
+
+
+def test_chunk_bindings_share_one_footer_entry() -> None:
+    bindings = {binding.action: binding for binding in DiffApp.BINDINGS}
+    assert bindings["next_chunk"].key_display == "alt+n/p"
+    assert bindings["next_chunk"].description == "nxt,prv chunk"
+    assert bindings["previous_chunk"].show is False
+
+
 def test_change_title_shows_single_file_for_modification() -> None:
     modified = FileChange(ChangeStatus.MODIFIED, "a.py", "a.py")
     assert DiffApp._change_title(modified) == "a.py"
