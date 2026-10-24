@@ -10,7 +10,7 @@ from gdiff.cli import ALL_CONTEXT, Options, main, parse_args, resolve_targets, r
 from gdiff.gitrepo import GitRepo, Target, TargetKind
 from gdiff.model import FileChange
 
-from .conftest import commit, write
+from .conftest import commit, git, write
 
 
 def test_defaults() -> None:
@@ -159,6 +159,13 @@ def test_resolve_default_is_index_worktree(repo: Path) -> None:
     assert right.kind is TargetKind.WORKTREE
 
 
+def test_resolve_default_does_not_require_head(tmp_path: Path) -> None:
+    git(tmp_path, "init")
+    left, right = resolve_targets(GitRepo(tmp_path), parse_args([]))
+    assert left.kind is TargetKind.INDEX
+    assert right.kind is TargetKind.WORKTREE
+
+
 def test_resolve_staged_is_head_index(repo: Path) -> None:
     left, right = resolve_targets(GitRepo(repo), parse_args(["--staged"]))
     assert left.kind is TargetKind.COMMIT
@@ -214,6 +221,7 @@ def test_help_is_handled_without_tty(
     assert "a commit hash" in out
     assert "gdiff file1 file2" in out
     assert "two existing files" in out
+    assert "plus untracked files" in out
     assert "gdiff HEAD -- a.py b.py" in out
     assert "pathspecs" in out
 

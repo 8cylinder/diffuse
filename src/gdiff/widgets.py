@@ -24,6 +24,7 @@ _STATUS_STYLE: dict[ChangeStatus, str] = {
     ChangeStatus.COPIED: "bold cyan",
     ChangeStatus.TYPE_CHANGED: "bold magenta",
     ChangeStatus.UNMERGED: "bold red",
+    ChangeStatus.UNTRACKED: "bold green",
     ChangeStatus.UNKNOWN: "bold white",
 }
 

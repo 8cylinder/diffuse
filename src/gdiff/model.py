@@ -16,6 +16,7 @@ class ChangeStatus(StrEnum):
     RENAMED = "R"
     COPIED = "C"
     UNMERGED = "U"
+    UNTRACKED = "??"
     UNKNOWN = "?"
 
     @classmethod
@@ -28,6 +29,7 @@ class ChangeStatus(StrEnum):
 
     @property
     def single_letter(self) -> str:
+        """The short status text shown in the file list."""
         return self.value
 
 

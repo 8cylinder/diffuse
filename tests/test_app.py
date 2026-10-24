@@ -113,6 +113,21 @@ async def test_app_loads_file_comparison(repo: Path) -> None:
         assert app.query(DiffView)
 
 
+async def test_app_loads_untracked_file(repo: Path) -> None:
+    write(repo, "untracked.txt", "new\n")
+    git_repo = GitRepo(repo)
+    left = Target.index()
+    right = Target.worktree()
+    changes = git_repo.changes(left, right)
+    assert changes[0].status is ChangeStatus.UNTRACKED
+
+    app = DiffApp(git_repo, changes, left, right)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.title == "untracked.txt"
+        assert app.query(DiffView)
+
+
 async def test_app_loads_first_diff(repo: Path) -> None:
     git_repo, changes, left, right = _make_changes(repo)
     assert len(changes) == 2

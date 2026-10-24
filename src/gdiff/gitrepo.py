@@ -124,12 +124,28 @@ class GitRepo:
         if paths:
             args += ["--", *paths]
 
-        raw = self._run(args)
-
         # git diff-tree with a single commit and no --stdin behaves like
         # `git diff <commit>^..<commit>`; for our two-target usages we always
         # pass explicit revs or diff against the index/worktree, so that's fine.
-        return _parse_name_status(raw)
+        raw = self._run(args)
+        changes = _parse_name_status(raw)
+        if right.kind is TargetKind.WORKTREE:
+            changes.extend(self._untracked(paths))
+        return changes
+
+    def _untracked(self, paths: list[str] | None) -> list[FileChange]:
+        """List untracked, non-ignored files in the working tree."""
+        # --full-name keeps paths repo-root-relative, matching --name-status.
+        args = ["ls-files", "--others", "--exclude-standard", "--full-name", "-z"]
+        if paths:
+            args += ["--", *paths]
+        raw = self._run(args)
+        # Untracked nested repositories are listed with a trailing slash.
+        return [
+            FileChange(ChangeStatus.UNTRACKED, None, path)
+            for path in _parse_paths(raw)
+            if not path.endswith("/")
+        ]
 
     def _diff_args(self, left: Target, right: Target) -> list[str]:
         if left.kind is TargetKind.COMMIT and right.kind is TargetKind.COMMIT:
@@ -177,6 +193,10 @@ class GitRepo:
         except (FileNotFoundError, IsADirectoryError, PermissionError):
             # Deleted files, submodule directories, or unreadable entries.
             return b""
+
+
+def _parse_paths(data: bytes) -> list[str]:
+    return [_decode(token) for token in data.split(b"\0") if token]
 
 
 def _parse_name_status(data: bytes) -> list[FileChange]:

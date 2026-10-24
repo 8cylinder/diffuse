@@ -32,19 +32,22 @@ gdiff --version
 ## Usage
 
 ```sh
-gdiff                       # working tree vs index (like `git diff`)
+gdiff                       # working tree vs index (includes untracked files)
 gdiff HEAD                  # HEAD vs working tree
 gdiff 1a2b3c4               # a commit hash vs working tree
 gdiff main feature          # two commits
 gdiff file1 file2           # compare two files on disk
 gdiff --staged              # index vs HEAD
 gdiff HEAD~1 HEAD -- src/   # limit to a pathspec
-gdiff -- a.py b.py          # limit the diff to specific files
+gdiff -- a.py b.py          # limit the diff to specific pathspecs
 ```
 
 When both positional arguments are existing files, `gdiff` compares those two
 files directly (like `git diff --no-index`) instead of treating them as
 revisions. This works even outside a git repository.
+
+Working-tree comparisons (`gdiff` and `gdiff HEAD`) also include untracked
+files that are not ignored by git. Staged and commit-to-commit diffs do not.
 
 Pass pathspecs after `--` so they are not parsed as revisions. The header
 shows the current file and the subtitle shows the two sides, e.g. `local | HEAD`
@@ -69,7 +72,7 @@ version is read from the package metadata generated from `pyproject.toml`.
 
 When stdout is not a terminal (a pipe or redirect), `gdiff` delegates to
 `git diff` so it stays scriptable (a `-c`/`--context` value is translated to
-`--unified`).
+`--unified`). Untracked files are only shown by the interactive viewer.
 
 ### Shell completion
 

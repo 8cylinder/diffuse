@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from gdiff.gitrepo import GitRepo, Target, _parse_name_status, is_binary
 from gdiff.model import ChangeStatus
 
-from .conftest import commit, write
+from .conftest import commit, git, write
 
 
 def test_parse_name_status_add_modify_delete() -> None:
@@ -32,6 +34,61 @@ def test_worktree_vs_index(repo: Path) -> None:
     git_repo = GitRepo(repo)
     changes = git_repo.changes(Target.index(), Target.worktree())
     assert [(c.status, c.new_path) for c in changes] == [(ChangeStatus.MODIFIED, "README.md")]
+
+
+def test_untracked_files_are_included(repo: Path) -> None:
+    write(repo, "untracked.txt", "new\n")
+    changes = GitRepo(repo).changes(Target.index(), Target.worktree())
+    assert [(c.status, c.old_path, c.new_path) for c in changes] == [
+        (ChangeStatus.UNTRACKED, None, "untracked.txt")
+    ]
+
+
+def test_untracked_files_are_included_in_unborn_repo(tmp_path: Path) -> None:
+    git(tmp_path, "init")
+    write(tmp_path, "untracked.txt", "new\n")
+    changes = GitRepo(tmp_path).changes(Target.index(), Target.worktree())
+    assert [(c.status, c.new_path) for c in changes] == [(ChangeStatus.UNTRACKED, "untracked.txt")]
+
+
+def test_untracked_files_included_for_commit_to_worktree(repo: Path) -> None:
+    write(repo, "untracked.txt", "new\n")
+    changes = GitRepo(repo).changes(Target.commit("HEAD"), Target.worktree())
+    assert [(c.status, c.new_path) for c in changes] == [(ChangeStatus.UNTRACKED, "untracked.txt")]
+
+
+def test_untracked_files_excluded_from_staged_diff(repo: Path) -> None:
+    write(repo, "untracked.txt", "new\n")
+    changes = GitRepo(repo).changes(Target.commit("HEAD"), Target.index())
+    assert changes == []
+
+
+def test_untracked_files_respect_paths(repo: Path) -> None:
+    write(repo, "a.txt", "a\n")
+    write(repo, "b.txt", "b\n")
+    changes = GitRepo(repo).changes(Target.index(), Target.worktree(), paths=["a.txt"])
+    assert [c.new_path for c in changes] == ["a.txt"]
+
+
+def test_ignored_files_are_not_untracked(repo: Path) -> None:
+    write(repo, ".gitignore", "ignored.txt\n")
+    commit(repo, "ignore")
+    write(repo, "ignored.txt", "ignored\n")
+    assert GitRepo(repo).changes(Target.index(), Target.worktree()) == []
+
+
+def test_untracked_paths_are_repo_relative_from_subdir(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write(repo, "sub/tracked.txt", "one\n")
+    commit(repo, "sub")
+    monkeypatch.chdir(repo / "sub")
+    write(repo, "sub/untracked.txt", "new\n")
+
+    changes = GitRepo(Path.cwd()).changes(Target.index(), Target.worktree())
+    assert [(c.status, c.new_path) for c in changes] == [
+        (ChangeStatus.UNTRACKED, "sub/untracked.txt")
+    ]
 
 
 def test_staged_changes(repo: Path) -> None:

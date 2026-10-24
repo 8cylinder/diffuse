@@ -20,7 +20,7 @@ DESCRIPTION = "A terminal UI replacement for `git diff`."
 
 EXAMPLES = """\
 examples:
-  gdiff                       working tree vs index (like `git diff`)
+  gdiff                       working tree vs index (plus untracked files)
   gdiff HEAD                  HEAD vs the working tree
   gdiff 1a2b3c4               a commit hash vs the working tree
   gdiff main feature          two commits
@@ -256,9 +256,8 @@ def resolve_targets(repo: GitRepo, options: Options) -> tuple[Target, Target]:
         right = Target.index() if options.staged else Target.worktree()
         return Target.commit(base), right
 
-    head = repo.resolve("HEAD")
     if options.staged:
-        return Target.commit(head), Target.index()
+        return Target.commit(repo.resolve("HEAD")), Target.index()
     return Target.index(), Target.worktree()
 
 
