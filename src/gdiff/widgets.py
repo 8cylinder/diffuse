@@ -69,6 +69,7 @@ class ContextDiffView(DiffView):
     """A :class:`DiffView` with a configurable number of context lines."""
 
     context: reactive[int] = reactive(3, recompose=True)
+    ignore_whitespace: reactive[bool] = reactive(False, recompose=True)
     _scroll_anchor: tuple[bool, bool, float, int] | None = None
     _last_finite_context: int = 3
 
@@ -80,6 +81,7 @@ class ContextDiffView(DiffView):
         code_modified: str,
         *,
         context: int = 3,
+        ignore_whitespace: bool = False,
         split: bool = True,
         annotations: bool = False,
         auto_split: bool = False,
@@ -103,11 +105,17 @@ class ContextDiffView(DiffView):
         )
         self._last_finite_context = context if context < ALL_CONTEXT else 3
         self.context = context
+        self.ignore_whitespace = ignore_whitespace
 
     def watch_context(self, context: int) -> None:
         if context < ALL_CONTEXT:
             self._last_finite_context = context
         self._grouped_opcodes = None
+        self._scroll_anchor = self._capture_scroll_anchor()
+
+    def watch_ignore_whitespace(self, ignore_whitespace: bool) -> None:
+        self._grouped_opcodes = None
+        self._highlighted_code_lines = None
         self._scroll_anchor = self._capture_scroll_anchor()
 
     async def recompose(self) -> None:
@@ -149,12 +157,20 @@ class ContextDiffView(DiffView):
     def _grouped_opcodes_for(self, context: int) -> list[list[tuple[str, int, int, int, int]]]:
         text_lines_a = self.code_original.splitlines()
         text_lines_b = self.code_modified.splitlines()
-        sequence_matcher = difflib.SequenceMatcher(
-            lambda character: character in {" ", "\t"},
-            text_lines_a,
-            text_lines_b,
-            autojunk=True,
-        )
+        if self.ignore_whitespace:
+            sequence_matcher = difflib.SequenceMatcher(
+                None,
+                [_without_whitespace(line) for line in text_lines_a],
+                [_without_whitespace(line) for line in text_lines_b],
+                autojunk=True,
+            )
+        else:
+            sequence_matcher = difflib.SequenceMatcher(
+                lambda character: character in {" ", "\t"},
+                text_lines_a,
+                text_lines_b,
+                autojunk=True,
+            )
         return list(sequence_matcher.get_grouped_opcodes(context))
 
     @property
@@ -237,6 +253,11 @@ class ContextDiffView(DiffView):
             ceil(length / max(1, width - annotation.cell_length)) if length else 1
             for annotation, length in zip(annotations, code_lengths, strict=True)
         ]
+
+
+def _without_whitespace(line: str) -> str:
+    """A line key that ignores all whitespace, to hide whitespace-only changes."""
+    return "".join(line.split())
 
 
 def _first_change(

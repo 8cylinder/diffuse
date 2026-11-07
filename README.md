@@ -95,7 +95,8 @@ the current terminal.
 | `PageUp`/`PageDown` | Page the diff up / down                      |
 | `space`          | Toggle split / unified view                     |
 | `A`              | Toggle +/- annotations                          |
-| `w`              | Toggle word wrap                                |
+| `w`              | Toggle whitespace differences                   |
+| `r`              | Toggle word wrap                                |
 | `=` / `-`        | Show more / fewer context lines                 |
 | `a`              | Toggle all lines vs the default context         |
 | `s`              | Toggle the file sidebar                         |

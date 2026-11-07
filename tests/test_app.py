@@ -213,6 +213,18 @@ def test_context_diff_view_updates_dynamically() -> None:
     assert _equal_lines(view) == 6
 
 
+def test_context_diff_view_can_ignore_whitespace() -> None:
+    old = "a\nfoo bar\nb\n"
+    new = "a\nfoo  bar\nb\n"
+
+    view = ContextDiffView("a", "b", old, new, context=ALL_CONTEXT)
+    tags = [tag for group in view.grouped_opcodes for tag, *_ in group]
+    assert "replace" in tags
+
+    view.ignore_whitespace = True
+    assert view.grouped_opcodes == []
+
+
 async def test_app_adjusts_context_with_keys(repo: Path) -> None:
     git_repo, changes, left, right = _make_changes(repo)
 
@@ -378,6 +390,32 @@ async def test_app_toggles_annotations(repo: Path) -> None:
         await pilot.press("A")
         await pilot.pause()
         assert app.annotations is False
+
+
+async def test_app_toggles_whitespace(repo: Path) -> None:
+    git_repo, changes, left, right = _make_changes(repo)
+
+    app = DiffApp(git_repo, changes, left, right)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.ignore_whitespace is False
+        assert app.query_one(ContextDiffView).ignore_whitespace is False
+        await pilot.press("w")
+        await pilot.pause()
+        assert app.ignore_whitespace is True
+        assert app.query_one(ContextDiffView).ignore_whitespace is True
+
+
+async def test_app_toggles_wrap_with_r(repo: Path) -> None:
+    git_repo, changes, left, right = _make_changes(repo)
+
+    app = DiffApp(git_repo, changes, left, right)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.wrap is False
+        await pilot.press("r")
+        await pilot.pause()
+        assert app.wrap is True
 
 
 async def test_app_cycles_themes(repo: Path) -> None:

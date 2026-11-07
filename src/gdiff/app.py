@@ -53,7 +53,8 @@ class DiffApp(App[None]):
         Binding("q", "quit", "Quit"),
         Binding("space", "toggle_split", "Split"),
         Binding("A", "toggle_annotations", "Annotations"),
-        Binding("w", "toggle_wrap", "Wrap"),
+        Binding("w", "toggle_whitespace", "Whitespace"),
+        Binding("r", "toggle_wrap", "Wrap"),
         Binding("n", "next_file", "Next"),
         Binding("p", "previous_file", "Previous"),
         Binding("alt+n", "next_chunk", "nxt,prv chunk", key_display="alt+n/p"),
@@ -72,6 +73,7 @@ class DiffApp(App[None]):
     split = var(True)
     annotations = var(True)
     wrap = var(False)
+    ignore_whitespace = var(False)
     context = var(3)
 
     def __init__(
@@ -146,12 +148,19 @@ class DiffApp(App[None]):
                 old_bytes.decode("utf-8", "replace"),
                 new_bytes.decode("utf-8", "replace"),
                 context=self.context,
+                ignore_whitespace=self.ignore_whitespace,
             )
         except LoadError as error:  # pragma: no cover - defensive
             await container.mount(widgets.Static(str(error), classes="placeholder"))
             return
 
-        view.data_bind(DiffApp.split, DiffApp.annotations, DiffApp.wrap, DiffApp.context)
+        view.data_bind(
+            DiffApp.split,
+            DiffApp.annotations,
+            DiffApp.wrap,
+            DiffApp.context,
+            DiffApp.ignore_whitespace,
+        )
 
         if request != self._request:
             return
@@ -196,6 +205,10 @@ class DiffApp(App[None]):
 
     def action_toggle_annotations(self) -> None:
         self.annotations = not self.annotations
+        self._chunk_index = -1
+
+    def action_toggle_whitespace(self) -> None:
+        self.ignore_whitespace = not self.ignore_whitespace
         self._chunk_index = -1
 
     def action_toggle_wrap(self) -> None:
