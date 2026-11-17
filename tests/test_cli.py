@@ -5,10 +5,10 @@ from pathlib import Path
 import click
 import pytest
 
-from gdiff import __version__
-from gdiff.cli import ALL_CONTEXT, Options, main, parse_args, resolve_targets, run
-from gdiff.gitrepo import GitRepo, Target, TargetKind
-from gdiff.model import FileChange
+from diffuse import __version__
+from diffuse.cli import ALL_CONTEXT, Options, main, parse_args, resolve_targets, run
+from diffuse.gitrepo import GitRepo, Target, TargetKind
+from diffuse.model import FileChange
 
 from .conftest import commit, git, write
 
@@ -87,9 +87,9 @@ def _capture_tty_options(
         captured.append(options)
         return 0
 
-    monkeypatch.setattr("gdiff.cli.sys.stdout.isatty", lambda: True)
-    monkeypatch.setattr("gdiff.cli.sys.stdin.isatty", lambda: True)
-    monkeypatch.setattr("gdiff.cli.run", fake_run)
+    monkeypatch.setattr("diffuse.cli.sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr("diffuse.cli.sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("diffuse.cli.run", fake_run)
     return captured
 
 
@@ -144,7 +144,7 @@ def test_run_compares_file_pair_outside_repo(
         def run(self) -> None:
             pass
 
-    monkeypatch.setattr("gdiff.cli.DiffApp", FakeApp)
+    monkeypatch.setattr("diffuse.cli.DiffApp", FakeApp)
 
     assert run(Options(files=[str(first), str(second)])) == 0
     ((changes, left, right, _),) = captured
@@ -211,37 +211,37 @@ def test_resolve_one_commit_hash_staged(repo: Path) -> None:
 def test_help_is_handled_without_tty(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr("gdiff.cli.sys.stdout.isatty", lambda: False)
-    monkeypatch.setattr("gdiff.cli.sys.stdin.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.sys.stdin.isatty", lambda: False)
     assert main(["--help"]) == 0
     out = capsys.readouterr().out
-    assert "Usage: gdiff" in out
+    assert "Usage: diffuse" in out
     assert "-h, --help" in out
-    assert "gdiff HEAD" in out
+    assert "diffuse HEAD" in out
     assert "a commit hash" in out
-    assert "gdiff file1 file2" in out
+    assert "diffuse file1 file2" in out
     assert "two existing files" in out
     assert "plus untracked files" in out
-    assert "gdiff HEAD -- a.py b.py" in out
+    assert "diffuse HEAD -- a.py b.py" in out
     assert "pathspecs" in out
 
 
 def test_short_help_flag(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr("gdiff.cli.sys.stdout.isatty", lambda: False)
-    monkeypatch.setattr("gdiff.cli.sys.stdin.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.sys.stdin.isatty", lambda: False)
     assert main(["-h"]) == 0
-    assert "Usage: gdiff" in capsys.readouterr().out
+    assert "Usage: diffuse" in capsys.readouterr().out
 
 
 def test_version_is_handled_without_tty(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr("gdiff.cli.sys.stdout.isatty", lambda: False)
-    monkeypatch.setattr("gdiff.cli.sys.stdin.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.sys.stdin.isatty", lambda: False)
     assert main(["--version"]) == 0
-    assert capsys.readouterr().out.strip() == f"gdiff {__version__}"
+    assert capsys.readouterr().out.strip() == f"diffuse {__version__}"
 
 
 def test_completions_writes_bash_script(
@@ -250,16 +250,16 @@ def test_completions_writes_bash_script(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr("gdiff.cli.sys.stdout.isatty", lambda: False)
-    monkeypatch.setattr("gdiff.cli.sys.stdin.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.sys.stdin.isatty", lambda: False)
 
     assert main(["--completions"]) == 0
 
-    script = tmp_path / ".local/share/bash-completion/completions/gdiff"
+    script = tmp_path / ".local/share/bash-completion/completions/diffuse"
     assert script.is_file()
     body = script.read_text(encoding="utf-8")
-    assert "_gdiff_completion" in body
-    assert "complete -o nosort -F _gdiff_completion gdiff" in body
+    assert "_diffuse_completion" in body
+    assert "complete -o nosort -F _diffuse_completion diffuse" in body
 
     out = capsys.readouterr().out
     assert f"wrote completion script to {script}" in out
@@ -268,9 +268,9 @@ def test_completions_writes_bash_script(
 
 def test_passthrough_when_not_tty(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[list[str]] = []
-    monkeypatch.setattr("gdiff.cli.sys.stdout.isatty", lambda: False)
-    monkeypatch.setattr("gdiff.cli.sys.stdin.isatty", lambda: False)
-    monkeypatch.setattr("gdiff.cli.subprocess.call", lambda args: calls.append(args) or 0)
+    monkeypatch.setattr("diffuse.cli.sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.sys.stdin.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.subprocess.call", lambda args: calls.append(args) or 0)
 
     assert main(["HEAD~1", "HEAD", "--", "a.py"]) == 0
     assert calls == [["git", "diff", "HEAD~1", "HEAD", "--", "a.py"]]
@@ -282,9 +282,9 @@ def test_passthrough_compares_two_files(repo: Path, monkeypatch: pytest.MonkeyPa
     monkeypatch.chdir(repo)
 
     calls: list[list[str]] = []
-    monkeypatch.setattr("gdiff.cli.sys.stdout.isatty", lambda: False)
-    monkeypatch.setattr("gdiff.cli.sys.stdin.isatty", lambda: False)
-    monkeypatch.setattr("gdiff.cli.subprocess.call", lambda args: calls.append(args) or 0)
+    monkeypatch.setattr("diffuse.cli.sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.sys.stdin.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.subprocess.call", lambda args: calls.append(args) or 0)
 
     assert main(["a.txt", "b.txt"]) == 0
     assert calls == [["git", "diff", "--no-index", "--", "a.txt", "b.txt"]]
@@ -298,9 +298,9 @@ def test_passthrough_compares_two_files_with_context(
     monkeypatch.chdir(repo)
 
     calls: list[list[str]] = []
-    monkeypatch.setattr("gdiff.cli.sys.stdout.isatty", lambda: False)
-    monkeypatch.setattr("gdiff.cli.sys.stdin.isatty", lambda: False)
-    monkeypatch.setattr("gdiff.cli.subprocess.call", lambda args: calls.append(args) or 0)
+    monkeypatch.setattr("diffuse.cli.sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.sys.stdin.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.subprocess.call", lambda args: calls.append(args) or 0)
 
     assert main(["-c", "5", "a.txt", "b.txt"]) == 0
     assert calls == [["git", "diff", "--no-index", "--unified=5", "--", "a.txt", "b.txt"]]
@@ -308,9 +308,9 @@ def test_passthrough_compares_two_files_with_context(
 
 def test_passthrough_translates_context(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[list[str]] = []
-    monkeypatch.setattr("gdiff.cli.sys.stdout.isatty", lambda: False)
-    monkeypatch.setattr("gdiff.cli.sys.stdin.isatty", lambda: False)
-    monkeypatch.setattr("gdiff.cli.subprocess.call", lambda args: calls.append(args) or 0)
+    monkeypatch.setattr("diffuse.cli.sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.sys.stdin.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.subprocess.call", lambda args: calls.append(args) or 0)
 
     assert main(["-c", "7", "HEAD", "--", "a.py"]) == 0
     assert calls == [["git", "diff", "--unified=7", "HEAD", "--", "a.py"]]
@@ -318,9 +318,9 @@ def test_passthrough_translates_context(monkeypatch: pytest.MonkeyPatch) -> None
 
 def test_passthrough_translates_full_context(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[list[str]] = []
-    monkeypatch.setattr("gdiff.cli.sys.stdout.isatty", lambda: False)
-    monkeypatch.setattr("gdiff.cli.sys.stdin.isatty", lambda: False)
-    monkeypatch.setattr("gdiff.cli.subprocess.call", lambda args: calls.append(args) or 0)
+    monkeypatch.setattr("diffuse.cli.sys.stdout.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.sys.stdin.isatty", lambda: False)
+    monkeypatch.setattr("diffuse.cli.subprocess.call", lambda args: calls.append(args) or 0)
 
     assert main(["-c", "a", "HEAD"]) == 0
     assert calls == [["git", "diff", f"--unified={ALL_CONTEXT}", "HEAD"]]

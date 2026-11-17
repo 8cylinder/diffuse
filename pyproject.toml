@@ -1,5 +1,5 @@
 [project]
-name = "gdiff"
+name = "diffuse"
 version = "0.1.0"
 description = "A terminal UI replacement for `git diff`, built with Textual."
 readme = "README.md"
@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-gdiff = "gdiff.cli:main"
+diffuse = "diffuse.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.17,<0.13.0"]

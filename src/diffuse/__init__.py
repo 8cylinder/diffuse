@@ -20,6 +20,6 @@ def _pyproject_version() -> str:
 
 
 try:
-    __version__ = version("gdiff")
+    __version__ = version("diffuse")
 except PackageNotFoundError:  # pragma: no cover - only when running uninstalled
     __version__ = _pyproject_version()

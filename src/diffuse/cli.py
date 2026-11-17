@@ -1,4 +1,4 @@
-"""Command line entry point for gdiff."""
+"""Command line entry point for diffuse."""
 
 from __future__ import annotations
 
@@ -12,25 +12,25 @@ from typing import Any
 import click
 from click.shell_completion import get_completion_class
 
-from gdiff import __version__
-from gdiff.app import ALL_CONTEXT, DiffApp
-from gdiff.gitrepo import GitError, GitRepo, Target
+from diffuse import __version__
+from diffuse.app import ALL_CONTEXT, DiffApp
+from diffuse.gitrepo import GitError, GitRepo, Target
 
 DESCRIPTION = "A terminal UI replacement for `git diff`."
 
 EXAMPLES = """\
 examples:
-  gdiff                       working tree vs index (plus untracked files)
-  gdiff HEAD                  HEAD vs the working tree
-  gdiff 1a2b3c4               a commit hash vs the working tree
-  gdiff main feature          two commits
-  gdiff file1 file2           compare two existing files
-  gdiff -c 5 file1 file2      compare two files with 5 lines of context
-  gdiff HEAD~1 HEAD -- src/   two commits, limited to a path
-  gdiff HEAD -- a.py b.py     limit HEAD's diff to these pathspecs
+  diffuse                        working tree vs index (plus untracked files)
+  diffuse HEAD                   HEAD vs the working tree
+  diffuse 1a2b3c4                a commit hash vs the working tree
+  diffuse main feature           two commits
+  diffuse file1 file2            compare two existing files
+  diffuse -c 5 file1 file2       compare two files with 5 lines of context
+  diffuse HEAD~1 HEAD -- src/    two commits, limited to a path
+  diffuse HEAD -- a.py b.py      limit HEAD's diff to these pathspecs
 """
 
-COMPLETE_VAR = "_GDIFF_COMPLETE"
+COMPLETE_VAR = "_DIFFUSE_COMPLETE"
 
 
 @dataclass(slots=True)
@@ -120,7 +120,7 @@ class ContextParam(click.ParamType):
 
 
 def _completion_path() -> Path:
-    return Path.home() / ".local/share/bash-completion/completions/gdiff"
+    return Path.home() / ".local/share/bash-completion/completions/diffuse"
 
 
 def _completion_script(command: click.Command) -> str:
@@ -130,7 +130,7 @@ def _completion_script(command: click.Command) -> str:
     completion = completion_class(
         cli=command,
         ctx_args={},
-        prog_name="gdiff",
+        prog_name="diffuse",
         complete_var=COMPLETE_VAR,
     )
     return completion.source()
@@ -145,7 +145,7 @@ def _write_completions(ctx: click.Context, param: click.Parameter | None, value:
     try:
         script = _completion_script(ctx.command)
     except (OSError, RuntimeError) as error:
-        click.echo(f"gdiff: {error}", err=True)
+        click.echo(f"diffuse: {error}", err=True)
         ctx.exit(1)
         return
 
@@ -153,7 +153,7 @@ def _write_completions(ctx: click.Context, param: click.Parameter | None, value:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(script, encoding="utf-8")
     except OSError as error:
-        click.echo(f"gdiff: could not write {path}: {error}", err=True)
+        click.echo(f"diffuse: could not write {path}: {error}", err=True)
         ctx.exit(1)
         return
 
@@ -168,12 +168,12 @@ def _check_revs(revs: list[str]) -> None:
 
 
 @click.command(
-    name="gdiff",
+    name="diffuse",
     help=DESCRIPTION,
     epilog="\b\n" + EXAMPLES,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
-@click.version_option(__version__, prog_name="gdiff", message="%(prog)s %(version)s")
+@click.version_option(__version__, prog_name="diffuse", message="%(prog)s %(version)s")
 @click.option(
     "--completions",
     is_flag=True,
@@ -228,7 +228,7 @@ def cli(
 
 def parse_args(argv: list[str]) -> Options:
     main_args, paths = _split_paths(list(argv))
-    ctx = cli.make_context("gdiff", main_args, obj=paths)
+    ctx = cli.make_context("diffuse", main_args, obj=paths)
     revs = list(ctx.params["revs"])
     _check_revs(revs)
 
@@ -288,7 +288,7 @@ def _passthrough(argv: list[str]) -> int:
     try:
         args, context = _extract_context(argv)
     except ValueError as error:
-        click.echo(f"gdiff: {error}", err=True)
+        click.echo(f"diffuse: {error}", err=True)
         return 2
 
     if _is_file_pair(args):
@@ -304,7 +304,7 @@ def _passthrough(argv: list[str]) -> int:
     try:
         return subprocess.call(command)
     except FileNotFoundError:
-        click.echo("gdiff: git not found on PATH", err=True)
+        click.echo("diffuse: git not found on PATH", err=True)
         return 127
 
 
@@ -313,7 +313,7 @@ def run(options: Options) -> int:
     _check_revs(options.revs)
     repo = GitRepo(Path.cwd())
     if not options.files and not repo.is_repo():
-        click.echo("gdiff: not a git repository", err=True)
+        click.echo("diffuse: not a git repository", err=True)
         return 128
 
     try:
@@ -325,11 +325,11 @@ def run(options: Options) -> int:
             find_renames=options.find_renames,
         )
     except GitError as error:
-        click.echo(f"gdiff: {error}", err=True)
+        click.echo(f"diffuse: {error}", err=True)
         return 128
 
     if not changes:
-        click.echo("gdiff: no changes", err=True)
+        click.echo("diffuse: no changes", err=True)
         return 0
 
     DiffApp(repo, changes, left, right, options.context).run()
@@ -344,7 +344,7 @@ def _wants_click(args: list[str]) -> bool:
 def _invoke_click(args: list[str], paths: list[str] | None = None) -> int:
     result = cli.main(
         args=args,
-        prog_name="gdiff",
+        prog_name="diffuse",
         complete_var=COMPLETE_VAR,
         standalone_mode=False,
         obj=paths,
@@ -367,7 +367,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return _invoke_click(main_args, paths)
     except click.UsageError as error:
-        click.echo(f"gdiff: {error.format_message()}", err=True)
+        click.echo(f"diffuse: {error.format_message()}", err=True)
         return 2
 
 

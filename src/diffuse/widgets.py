@@ -12,7 +12,7 @@ from textual.widget import Widget
 from textual.widgets import Label, ListItem, ListView
 from textual_diff_view import DiffView
 
-from gdiff.model import ChangeStatus, FileChange
+from diffuse.model import ChangeStatus, FileChange
 
 ALL_CONTEXT = 1 << 30
 

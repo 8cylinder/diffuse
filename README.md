@@ -1,13 +1,13 @@
-# gdiff
+# diffuse
 
 A terminal UI replacement for `git diff`, built with
 [Textual](https://github.com/textualize/textual) and
 [textual-diff-view](https://github.com/batrachianai/textual-diff-view).
 
-`gdiff` resolves revisions with git plumbing and renders each changed file in a
+`diffuse` resolves revisions with git plumbing and renders each changed file in a
 side-by-side or unified diff view.
 
-Source: <https://github.com/8cylinder/gdiff>
+Source: <https://github.com/8cylinder/diffuse>
 
 ## Install
 
@@ -16,44 +16,44 @@ Requirements: Python 3.11+, [uv](https://docs.astral.sh/uv/), and git.
 From a checkout:
 
 ```sh
-git clone git@github.com:8cylinder/gdiff.git
-cd gdiff
-uv sync            # install dependencies
-uv run gdiff       # run from the checkout
+git clone git@github.com:8cylinder/diffuse.git
+cd diffuse
+uv sync              # install dependencies
+uv run diffuse       # run from the checkout
 ```
 
 Install the CLI as a tool:
 
 ```sh
 make install       # uv tool install --editable --force .
-gdiff --version
+diffuse --version
 ```
 
 ## Usage
 
 ```sh
-gdiff                       # working tree vs index (includes untracked files)
-gdiff HEAD                  # HEAD vs working tree
-gdiff 1a2b3c4               # a commit hash vs working tree
-gdiff main feature          # two commits
-gdiff file1 file2           # compare two files on disk
-gdiff --staged              # index vs HEAD
-gdiff HEAD~1 HEAD -- src/   # limit to a pathspec
-gdiff -- a.py b.py          # limit the diff to specific pathspecs
+diffuse                        # working tree vs index (includes untracked files)
+diffuse HEAD                   # HEAD vs working tree
+diffuse 1a2b3c4                # a commit hash vs working tree
+diffuse main feature           # two commits
+diffuse file1 file2            # compare two files on disk
+diffuse --staged               # index vs HEAD
+diffuse HEAD~1 HEAD -- src/    # limit to a pathspec
+diffuse -- a.py b.py           # limit the diff to specific pathspecs
 ```
 
-When both positional arguments are existing files, `gdiff` compares those two
+When both positional arguments are existing files, `diffuse` compares those two
 files directly (like `git diff --no-index`) instead of treating them as
 revisions. This works even outside a git repository.
 
-Working-tree comparisons (`gdiff` and `gdiff HEAD`) also include untracked
+Working-tree comparisons (`diffuse` and `diffuse HEAD`) also include untracked
 files that are not ignored by git. Staged and commit-to-commit diffs do not.
 
 Pass pathspecs after `--` so they are not parsed as revisions. The header
 shows the current file and the subtitle shows the two sides, e.g. `local | HEAD`
 or `local | 1a2b3c4`.
 
-`gdiff -h` prints the same examples.
+`diffuse -h` prints the same examples.
 
 ### Options
 
@@ -67,21 +67,21 @@ or `local | 1a2b3c4`.
 | `-h`, `--help`            | Print help and the examples                          |
 | `--version`               | Print the version                                    |
 
-`gdiff` has no configuration file; all options are command-line flags. The
+`diffuse` has no configuration file; all options are command-line flags. The
 version is read from the package metadata generated from `pyproject.toml`.
 
-When stdout is not a terminal (a pipe or redirect), `gdiff` delegates to
+When stdout is not a terminal (a pipe or redirect), `diffuse` delegates to
 `git diff` so it stays scriptable (a `-c`/`--context` value is translated to
 `--unified`). Untracked files are only shown by the interactive viewer.
 
 ### Shell completion
 
 ```sh
-gdiff --completions
+diffuse --completions
 ```
 
 This writes a bash completion script to
-`~/.local/share/bash-completion/completions/gdiff`, prints the path, and tells
+`~/.local/share/bash-completion/completions/diffuse`, prints the path, and tells
 you how to source it. Run the printed `source` command to enable completion in
 the current terminal.
 

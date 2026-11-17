@@ -5,10 +5,10 @@ from pathlib import Path
 from textual import containers
 from textual_diff_view import DiffView
 
-from gdiff.app import ALL_CONTEXT, DiffApp
-from gdiff.gitrepo import GitRepo, Target
-from gdiff.model import ChangeStatus, FileChange
-from gdiff.widgets import ContextDiffView, FileList
+from diffuse.app import ALL_CONTEXT, DiffApp
+from diffuse.gitrepo import GitRepo, Target
+from diffuse.model import ChangeStatus, FileChange
+from diffuse.widgets import ContextDiffView, FileList
 
 from .conftest import commit, git, write
 

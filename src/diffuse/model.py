@@ -1,4 +1,4 @@
-"""Domain model for gdiff."""
+"""Domain model for diffuse."""
 
 from __future__ import annotations
 

@@ -11,9 +11,9 @@ from textual.binding import Binding
 from textual.reactive import var
 from textual_diff_view import LoadError
 
-from gdiff.gitrepo import GitError, GitRepo, Target, TargetKind, is_binary
-from gdiff.model import FileChange
-from gdiff.widgets import ALL_CONTEXT, ContextDiffView, FileItem, FileList
+from diffuse.gitrepo import GitError, GitRepo, Target, TargetKind, is_binary
+from diffuse.model import FileChange
+from diffuse.widgets import ALL_CONTEXT, ContextDiffView, FileItem, FileList
 
 
 class DiffApp(App[None]):

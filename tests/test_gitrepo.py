@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from gdiff.gitrepo import GitRepo, Target, _parse_name_status, is_binary
-from gdiff.model import ChangeStatus
+from diffuse.gitrepo import GitRepo, Target, _parse_name_status, is_binary
+from diffuse.model import ChangeStatus
 
 from .conftest import commit, git, write
 
