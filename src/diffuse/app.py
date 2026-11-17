@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import ClassVar
 
 from textual import containers, widgets
@@ -11,9 +12,16 @@ from textual.binding import Binding
 from textual.reactive import var
 from textual_diff_view import LoadError
 
+from diffuse.commit import CommitScreen
 from diffuse.gitrepo import GitError, GitRepo, Target, TargetKind, is_binary
 from diffuse.model import FileChange
-from diffuse.widgets import ALL_CONTEXT, ContextDiffView, FileItem, FileList
+from diffuse.widgets import (
+    ALL_CONTEXT,
+    ContextDiffView,
+    FileItem,
+    FileList,
+    change_is_staged,
+)
 
 
 class DiffApp(App[None]):
@@ -59,7 +67,9 @@ class DiffApp(App[None]):
         Binding("p", "previous_file", "Previous"),
         Binding("alt+n", "next_chunk", "nxt,prv chunk", key_display="alt+n/p"),
         Binding("alt+p", "previous_chunk", "Previous chunk", show=False),
-        Binding("s", "toggle_sidebar", "Sidebar"),
+        Binding("s", "stage_file", "Stage"),
+        Binding("S", "toggle_sidebar", "Sidebar"),
+        Binding("c", "commit", "Commit"),
         Binding("t", "cycle_theme", "Theme"),
         Binding("j", "scroll_diff_down", "Scroll down"),
         Binding("k", "scroll_diff_up", "Scroll up"),
@@ -83,23 +93,30 @@ class DiffApp(App[None]):
         left: Target,
         right: Target,
         context: int = 3,
+        *,
+        paths: list[str] | None = None,
+        find_renames: bool = True,
     ) -> None:
         super().__init__()
         self.repo = repo
         self.changes = changes
         self.left = left
         self.right = right
+        self.paths = list(paths or [])
+        self.find_renames = find_renames
         self.context = context
         self._default_context = context
         self.sub_title = self._subtitle(left, right)
         self._current: tuple[str | None, str | None] | None = None
         self._request = 0
         self._chunk_index = -1
+        self._left_is_head = self._is_head(left)
+        self._staged_paths = self._load_staged_paths()
 
     def compose(self) -> ComposeResult:
         yield widgets.Header(show_clock=False)
         with containers.Horizontal(id="body"):
-            yield FileList(self.changes, id="files")
+            yield FileList(self.changes, staged=self._staged_paths, id="files")
             yield containers.VerticalScroll(id="diff-container")
         yield widgets.Footer()
 
@@ -108,6 +125,137 @@ class DiffApp(App[None]):
         files.focus()
         if self.changes:
             self.run_worker(self._show_change(self.changes[0]), exclusive=True)
+
+    def _is_head(self, target: Target) -> bool:
+        if target.kind is not TargetKind.COMMIT:
+            return False
+        try:
+            return target.ref == self.repo.resolve("HEAD")
+        except GitError:
+            return False
+
+    def _load_staged_paths(self) -> set[str]:
+        if self.left.kind is TargetKind.FILE or self.right.kind is TargetKind.FILE:
+            return set()
+        try:
+            return self.repo.staged_paths()
+        except GitError:
+            return set()
+
+    def _can_modify_index(self) -> bool:
+        return (
+            self.left.kind is not TargetKind.FILE
+            and self.right.kind is not TargetKind.FILE
+            and self.repo.is_repo()
+        )
+
+    def _can_stage(self) -> bool:
+        return self.repo.is_repo() and self.right.kind in (
+            TargetKind.WORKTREE,
+            TargetKind.INDEX,
+        )
+
+    def _current_item(self) -> FileItem | None:
+        item = self.query_one(FileList).highlighted_child
+        return item if isinstance(item, FileItem) else None
+
+    def action_stage_file(self) -> None:
+        if not self._can_stage():
+            self.notify(
+                "Staging is only available in working tree views",
+                severity="warning",
+            )
+            return
+
+        item = self._current_item()
+        if item is None:
+            return
+
+        try:
+            if item.staged:
+                self.repo.unstage(item.change)
+            else:
+                self.repo.stage(item.change)
+        except GitError as error:
+            self.notify(str(error), title="Git error", severity="error", timeout=10)
+            return
+
+        staged = not item.staged
+        item.set_staged(staged)
+        self.notify(f"{'Staged' if staged else 'Unstaged'} {item.change.display_path}")
+
+    def action_commit(self) -> None:
+        if not self._can_modify_index():
+            self.notify("Commit is only available in git views", severity="warning")
+            return
+
+        if not self._load_staged_paths():
+            self.notify("No staged changes to commit", severity="warning")
+            return
+
+        self.push_screen(CommitScreen(self.repo), self._commit_finished)
+
+    def _commit_finished(self, committed: bool | None) -> None:
+        if committed:
+            self.notify("Commit created")
+            self.run_worker(self._reload_changes(), exclusive=True)
+        self.query_one(FileList).focus()
+
+    async def _reload_changes(self) -> None:
+        if self._left_is_head and self.left.kind is TargetKind.COMMIT:
+            with contextlib.suppress(GitError):
+                self.left = Target.commit(self.repo.resolve("HEAD"))
+            self.sub_title = self._subtitle(self.left, self.right)
+
+        files = self.query_one(FileList)
+        selected = files.highlighted_child
+        selected_key = selected.change.key if isinstance(selected, FileItem) else None
+
+        try:
+            changes = await asyncio.to_thread(
+                self.repo.changes,
+                self.left,
+                self.right,
+                paths=self.paths or None,
+                find_renames=self.find_renames,
+            )
+        except GitError as error:
+            self.notify(str(error), title="Could not refresh", severity="error", timeout=10)
+            return
+
+        self.changes = changes
+        self._staged_paths = await asyncio.to_thread(self._load_staged_paths)
+        files.staged_paths = self._staged_paths
+        self._current = None
+        self._chunk_index = -1
+
+        container = self.query_one("#diff-container", containers.VerticalScroll)
+        await container.remove_children()
+
+        if not changes:
+            self.title = "No changes"
+            await files.clear()
+            files.changes = []
+            await container.mount(widgets.Static("No changes to display.", classes="placeholder"))
+            return
+
+        await files.clear()
+        files.changes = changes
+        await files.extend(
+            FileItem(change, staged=change_is_staged(change, self._staged_paths))
+            for change in changes
+        )
+
+        index = 0
+        if selected_key is not None:
+            for candidate, change in enumerate(changes):
+                if change.key == selected_key:
+                    index = candidate
+                    break
+
+        files.index = index
+        files.focus()
+        await self._show_change(changes[index])
 
     async def on_list_view_highlighted(self, event: widgets.ListView.Highlighted) -> None:
         if isinstance(event.item, FileItem):

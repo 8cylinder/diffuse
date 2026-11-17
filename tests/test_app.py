@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from textual import containers
+from textual.widgets import TextArea
 from textual_diff_view import DiffView
 
 from diffuse.app import ALL_CONTEXT, DiffApp
+from diffuse.commit import CommitScreen
 from diffuse.gitrepo import GitRepo, Target
 from diffuse.model import ChangeStatus, FileChange
-from diffuse.widgets import ContextDiffView, FileList
+from diffuse.widgets import ContextDiffView, FileItem, FileList, format_change
 
 from .conftest import commit, git, write
 
@@ -80,6 +83,15 @@ def test_chunk_bindings_share_one_footer_entry() -> None:
 def test_change_title_shows_single_file_for_modification() -> None:
     modified = FileChange(ChangeStatus.MODIFIED, "a.py", "a.py")
     assert DiffApp._change_title(modified) == "a.py"
+
+
+def test_format_change_marks_staged_path_yellow() -> None:
+    change = FileChange(ChangeStatus.MODIFIED, "a.py", "a.py")
+    text = format_change(change, staged=True)
+    assert any(
+        text.plain[span.start : span.end] == "a.py" and "yellow" in str(span.style)
+        for span in text.spans
+    )
 
 
 def test_subtitle_local_vs_head(repo: Path) -> None:
@@ -430,6 +442,134 @@ async def test_app_cycles_themes(repo: Path) -> None:
         assert app.theme != before
 
 
+async def test_app_toggles_stage_for_current_file(repo: Path) -> None:
+    write(repo, "README.md", "changed\n")
+    git_repo = GitRepo(repo)
+    left = Target.index()
+    right = Target.worktree()
+    changes = git_repo.changes(left, right)
+
+    app = DiffApp(git_repo, changes, left, right)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        item = app.query_one(FileList).highlighted_child
+        assert isinstance(item, FileItem)
+        assert item.staged is False
+
+        await pilot.press("s")
+        await pilot.pause()
+        assert item.staged is True
+        assert git_repo.staged_paths() == {"README.md"}
+
+        await pilot.press("s")
+        await pilot.pause()
+        assert item.staged is False
+        assert git_repo.staged_paths() == set()
+
+
+async def test_app_marks_already_staged_files(repo: Path) -> None:
+    git_repo, changes, left, right = _make_changes(repo)
+
+    app = DiffApp(git_repo, changes, left, right)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert all(
+            item.staged for item in app.query_one(FileList).children if isinstance(item, FileItem)
+        )
+
+
+async def test_app_commit_requires_staged_changes(repo: Path) -> None:
+    write(repo, "README.md", "changed\n")
+    git_repo = GitRepo(repo)
+    left = Target.index()
+    right = Target.worktree()
+    changes = git_repo.changes(left, right)
+
+    app = DiffApp(git_repo, changes, left, right)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("c")
+        await pilot.pause()
+        assert not isinstance(app.screen, CommitScreen)
+
+
+async def test_app_prefills_cm_message(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    write(repo, "README.md", "changed\n")
+    git(repo, "add", "-A")
+    git_repo = GitRepo(repo)
+    left = Target.commit("HEAD")
+    right = Target.index()
+    changes = git_repo.changes(left, right)
+    monkeypatch.setattr("diffuse.commit.shutil.which", lambda command: "/usr/bin/cm")
+    monkeypatch.setattr("diffuse.commit.load_cm_message", lambda repo: "feat: generated")
+
+    app = DiffApp(git_repo, changes, left, right)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("c")
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert isinstance(app.screen, CommitScreen)
+        assert app.screen.query_one(TextArea).text == "feat: generated"
+
+
+async def test_commit_dialog_typing_does_not_stage(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("diffuse.commit.shutil.which", lambda command: None)
+    write(repo, "README.md", "changed\n")
+    git(repo, "add", "-A")
+    git_repo = GitRepo(repo)
+    left = Target.commit("HEAD")
+    right = Target.index()
+    changes = git_repo.changes(left, right)
+
+    app = DiffApp(git_repo, changes, left, right)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("c")
+        await pilot.pause()
+        assert isinstance(app.screen, CommitScreen)
+        await pilot.press("s")
+        await pilot.pause()
+        assert app.screen.query_one(TextArea).text == "s"
+        assert git_repo.staged_paths() == {"README.md"}
+
+
+async def test_app_commits_and_refreshes(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("diffuse.commit.shutil.which", lambda command: None)
+    write(repo, "README.md", "changed\n")
+    git_repo = GitRepo(repo)
+    left = Target.index()
+    right = Target.worktree()
+    changes = git_repo.changes(left, right)
+
+    app = DiffApp(git_repo, changes, left, right)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("s")
+        await pilot.pause()
+        await pilot.press("c")
+        await pilot.pause()
+        assert isinstance(app.screen, CommitScreen)
+
+        app.screen.query_one(TextArea).text = "my commit message"
+        await pilot.click("#commit")
+        for _ in range(50):
+            await pilot.pause(0.01)
+            if not isinstance(app.screen, CommitScreen):
+                break
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert not isinstance(app.screen, CommitScreen)
+        message = git(repo, "log", "-1", "--format=%s").stdout.decode().strip()
+        assert message == "my commit message"
+        assert app.title == "No changes"
+        assert app.query_one(FileList).changes == []
+
+
 async def test_app_toggles_sidebar(repo: Path) -> None:
     git_repo, changes, left, right = _make_changes(repo)
 
@@ -438,6 +578,6 @@ async def test_app_toggles_sidebar(repo: Path) -> None:
         await pilot.pause()
         files = app.query_one(FileList)
         assert not files.has_class("-hidden")
-        await pilot.press("s")
+        await pilot.press("S")
         await pilot.pause()
         assert files.has_class("-hidden")

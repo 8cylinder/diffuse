@@ -138,6 +138,7 @@ def test_run_compares_file_pair_outside_repo(
             left: Target,
             right: Target,
             context: int,
+            **kwargs: object,
         ) -> None:
             captured.append((changes, left, right, context))
 

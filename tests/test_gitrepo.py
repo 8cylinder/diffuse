@@ -189,6 +189,55 @@ def test_file_targets_support_absolute_paths(repo: Path) -> None:
     assert git_repo.blob(Target.file(old), old) == b"one\n"
 
 
+def test_stage_and_unstage_file(repo: Path) -> None:
+    write(repo, "README.md", "changed\n")
+    git_repo = GitRepo(repo)
+    change = git_repo.changes(Target.index(), Target.worktree())[0]
+
+    git_repo.stage(change)
+    assert git_repo.staged_paths() == {"README.md"}
+    assert git_repo.changes(Target.index(), Target.worktree()) == []
+
+    git_repo.unstage(change)
+    assert git_repo.staged_paths() == set()
+    assert git_repo.changes(Target.index(), Target.worktree())
+
+
+def test_stage_untracked_file(repo: Path) -> None:
+    write(repo, "new.txt", "new\n")
+    git_repo = GitRepo(repo)
+    change = git_repo.changes(Target.index(), Target.worktree())[0]
+    assert change.status is ChangeStatus.UNTRACKED
+
+    git_repo.stage(change)
+    assert git_repo.staged_paths() == {"new.txt"}
+
+
+def test_unstage_in_unborn_repo(tmp_path: Path) -> None:
+    git(tmp_path, "init")
+    write(tmp_path, "new.txt", "new\n")
+    git_repo = GitRepo(tmp_path)
+    change = git_repo.changes(Target.index(), Target.worktree())[0]
+
+    git_repo.stage(change)
+    assert git_repo.staged_paths() == {"new.txt"}
+
+    git_repo.unstage(change)
+    assert git_repo.staged_paths() == set()
+
+
+def test_commit_uses_message_on_stdin(repo: Path) -> None:
+    write(repo, "README.md", "committed\n")
+    git_repo = GitRepo(repo)
+    change = git_repo.changes(Target.index(), Target.worktree())[0]
+    git_repo.stage(change)
+    git_repo.commit("subject line\n\nbody text")
+
+    message = git(repo, "log", "-1", "--format=%B").stdout.decode().strip()
+    assert message == "subject line\n\nbody text"
+    assert git_repo.staged_paths() == set()
+
+
 def test_binary_detection() -> None:
     assert not is_binary(b"plain text\n")
     assert not is_binary(b"\x89PNG\r\n\x1a\n")

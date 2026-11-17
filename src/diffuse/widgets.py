@@ -29,21 +29,32 @@ _STATUS_STYLE: dict[ChangeStatus, str] = {
 }
 
 
-def format_change(change: FileChange) -> Text:
+def format_change(change: FileChange, *, staged: bool = False) -> Text:
     """Render a change as a coloured status letter plus its path."""
     text = Text()
     style = _STATUS_STYLE.get(change.status, "bold white")
     text.append(f"{change.status.single_letter} ", style=style)
-    text.append(change.display_path)
+    text.append(change.display_path, style="yellow" if staged else None)
     return text
+
+
+def change_is_staged(change: FileChange, staged_paths: set[str]) -> bool:
+    """Whether either side of ``change`` has staged modifications."""
+    return any(path in staged_paths for path in (change.old_path, change.new_path) if path)
 
 
 class FileItem(ListItem):
     """A single row in the :class:`FileList`."""
 
-    def __init__(self, change: FileChange) -> None:
-        super().__init__(Label(format_change(change)))
+    def __init__(self, change: FileChange, *, staged: bool = False) -> None:
+        super().__init__(Label(format_change(change, staged=staged)))
         self.change = change
+        self.staged = staged
+
+    def set_staged(self, staged: bool) -> None:
+        """Mark the file staged or unstaged and refresh its label."""
+        self.staged = staged
+        self.query_one(Label).update(format_change(self.change, staged=staged))
 
 
 class FileList(ListView):
@@ -53,16 +64,18 @@ class FileList(ListView):
         self,
         changes: list[FileChange],
         *,
+        staged: set[str] | None = None,
         id: str | None = None,
         name: str | None = None,
         classes: str | None = None,
     ) -> None:
         super().__init__(id=id, name=name, classes=classes)
         self.changes = changes
+        self.staged_paths = staged or set()
 
     def on_mount(self) -> None:
         for change in self.changes:
-            self.append(FileItem(change))
+            self.append(FileItem(change, staged=change_is_staged(change, self.staged_paths)))
 
 
 class ContextDiffView(DiffView):

@@ -65,12 +65,19 @@ class GitRepo:
         self.git = git
         self._root: Path | None = None
 
-    def _run(self, args: list[str], *, check: bool = True) -> bytes:
+    def _run(
+        self,
+        args: list[str],
+        *,
+        check: bool = True,
+        input: bytes | None = None,
+    ) -> bytes:
         try:
             proc = subprocess.run(
                 [self.git, *args],
                 cwd=self.path,
                 capture_output=True,
+                input=input,
             )
         except FileNotFoundError as error:  # pragma: no cover - environment specific
             raise GitError(f"`{self.git}` was not found on PATH") from error
@@ -96,6 +103,34 @@ class GitRepo:
         except GitError:
             return False
         return True
+
+    def staged_paths(self) -> set[str]:
+        """Paths with changes staged in the index."""
+        raw = self._run(["diff", "--cached", "--name-only", "--no-renames", "-z"])
+        return set(_parse_paths(raw))
+
+    def stage(self, change: FileChange) -> None:
+        """Stage every change for ``change`` at file granularity."""
+        paths = _change_paths(change)
+        if paths:
+            self._run(["add", "-A", "--", *paths])
+
+    def unstage(self, change: FileChange) -> None:
+        """Remove ``change`` from the index, leaving the working tree alone."""
+        paths = _change_paths(change)
+        if not paths:
+            return
+        if self._run(["rev-parse", "--verify", "--quiet", "HEAD"], check=False):
+            self._run(["reset", "-q", "HEAD", "--", *paths])
+        else:
+            self._run(["rm", "--cached", "-q", "--", *paths])
+
+    def commit(self, message: str) -> None:
+        """Create a commit from the index using ``message``."""
+        self._run(
+            ["commit", "-F", "-"],
+            input=(message.rstrip() + "\n").encode("utf-8"),
+        )
 
     def resolve(self, rev: str) -> str:
         """Resolve a revision to a full commit hash."""
@@ -193,6 +228,15 @@ class GitRepo:
         except (FileNotFoundError, IsADirectoryError, PermissionError):
             # Deleted files, submodule directories, or unreadable entries.
             return b""
+
+
+def _change_paths(change: FileChange) -> list[str]:
+    """Both sides of a change, without duplicates."""
+    paths: list[str] = []
+    for path in (change.old_path, change.new_path):
+        if path and path not in paths:
+            paths.append(path)
+    return paths
 
 
 def _parse_paths(data: bytes) -> list[str]:

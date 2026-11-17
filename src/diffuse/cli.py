@@ -332,7 +332,15 @@ def run(options: Options) -> int:
         click.echo("diffuse: no changes", err=True)
         return 0
 
-    DiffApp(repo, changes, left, right, options.context).run()
+    DiffApp(
+        repo,
+        changes,
+        left,
+        right,
+        options.context,
+        paths=options.paths,
+        find_renames=options.find_renames,
+    ).run()
     return 0
 
 

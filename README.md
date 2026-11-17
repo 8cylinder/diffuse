@@ -85,6 +85,18 @@ This writes a bash completion script to
 you how to source it. Run the printed `source` command to enable completion in
 the current terminal.
 
+### Staging and committing
+
+Press `s` to stage or unstage the highlighted file. Staging is file-level only;
+individual hunks cannot be staged. Staged files keep their sidebar entry and
+their filename is shown in yellow.
+
+Press `c` to commit the staged changes. A dialog opens over the current view
+with an editable commit message and compact Commit/Cancel buttons. If the `cm`
+command is on `PATH`, the dialog shows a spinner while `cm --staged plain`
+generates the message, then opens the editor pre-populated. Otherwise the editor
+opens blank immediately.
+
 ### Keys
 
 | Key              | Action                                          |
@@ -99,7 +111,9 @@ the current terminal.
 | `r`              | Toggle word wrap                                |
 | `=` / `-`        | Show more / fewer context lines                 |
 | `a`              | Toggle all lines vs the default context         |
-| `s`              | Toggle the file sidebar                         |
+| `s`              | Stage / unstage the current file                |
+| `S`              | Toggle the file sidebar                         |
+| `c`              | Commit staged changes                           |
 | `t`              | Cycle colour themes                             |
 | `q`              | Quit                                            |
 
