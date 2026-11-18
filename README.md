@@ -89,7 +89,8 @@ the current terminal.
 
 Press `s` to stage or unstage the highlighted file. Staging is file-level only;
 individual hunks cannot be staged. Staged files keep their sidebar entry and
-their filename is shown in yellow.
+their filename is shown in yellow. After staging, the cursor advances to the
+next file so you can stage several in a row.
 
 Press `c` to commit the staged changes. A dialog opens over the current view
 with an editable commit message and compact Commit/Cancel buttons. If the `cm`

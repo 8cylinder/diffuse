@@ -467,6 +467,45 @@ async def test_app_toggles_stage_for_current_file(repo: Path) -> None:
         assert git_repo.staged_paths() == set()
 
 
+async def test_app_advances_to_next_file_after_staging(repo: Path) -> None:
+    write(repo, "README.md", "changed\n")
+    write(repo, "new.py", "print('hi')\n")
+    git_repo = GitRepo(repo)
+    left = Target.index()
+    right = Target.worktree()
+    changes = git_repo.changes(left, right)
+
+    app = DiffApp(git_repo, changes, left, right)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        files = app.query_one(FileList)
+        first = files.highlighted_child
+        assert isinstance(first, FileItem)
+        assert files.index == 0
+
+        await pilot.press("s")
+        await pilot.pause()
+        assert first.staged is True
+        assert files.index == 1
+        second = files.highlighted_child
+        assert isinstance(second, FileItem)
+        assert second is not first
+
+        await pilot.press("s")
+        await pilot.pause()
+        assert second.staged is True
+        assert files.index == 1
+
+        await pilot.press("p")
+        await pilot.pause()
+        assert files.index == 0
+
+        await pilot.press("s")
+        await pilot.pause()
+        assert first.staged is False
+        assert files.index == 0
+
+
 async def test_app_marks_already_staged_files(repo: Path) -> None:
     git_repo, changes, left, right = _make_changes(repo)
 

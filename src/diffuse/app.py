@@ -183,6 +183,8 @@ class DiffApp(App[None]):
         staged = not item.staged
         item.set_staged(staged)
         self.notify(f"{'Staged' if staged else 'Unstaged'} {item.change.display_path}")
+        if staged:
+            self.action_next_file()
 
     def action_commit(self) -> None:
         if not self._can_modify_index():
